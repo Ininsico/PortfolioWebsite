@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import io from 'socket.io-client';
-import { API_BASE, SOCKET_URL } from '../config'; // ADD THIS
+import { API_BASE,SOCKET_URL } from '../../config';
 gsap.registerPlugin(ScrollTrigger);
 
 const UserDashboard = () => {
