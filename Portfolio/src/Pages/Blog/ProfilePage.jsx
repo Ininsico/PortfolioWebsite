@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import io from 'socket.io-client';
-
+import { API_BASE, SOCKET_URL } from '../config'; // ADD THIS
 gsap.registerPlugin(ScrollTrigger);
 
 const UserDashboard = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [activeSection, setActiveSection] = useState('posts');
-    const [profilePic, setProfilePic] = useState('/uploads/profilepics/DefaultPic.jpeg');
+    const [profilePic, setProfilePic] = useState(`${API_BASE}/uploads/profilepics/DefaultPic.jpeg`);
     const [postContent, setPostContent] = useState('');
     const [postMedia, setPostMedia] = useState([]);
     const fileInputRef = useRef(null);
@@ -150,7 +150,7 @@ const UserDashboard = () => {
             const token = localStorage.getItem('token');
             const userId = userObj.id;
 
-            const response = await fetch(`http://localhost:3001/api/users/${userId}`, {
+            const response = await fetch(`${API_BASE}/api/users/${userId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -161,7 +161,7 @@ const UserDashboard = () => {
             if (response.ok) {
                 const userDataFromAPI = await response.json();
                 setUser(userDataFromAPI.user);
-                setProfilePic(`http://localhost:3001${userDataFromAPI.user.profilePicture}`);
+                setProfilePic(`${API_BASE}${userDataFromAPI.user.profilePicture}?t=${Date.now()}`);
                 fetchUserPosts(userDataFromAPI.user.id, token);
                 fetchUserGroups(userDataFromAPI.user.id, token);
                 fetchSuggestedGroups(token);
@@ -177,7 +177,7 @@ const UserDashboard = () => {
 
     const fetchUserPosts = async (userId, token) => {
         try {
-            const response = await fetch(`http://localhost:3001/api/users/${userId}/posts`, {
+            const response = await fetch(`${API_BASE}/api/users/${userId}/posts`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -198,7 +198,7 @@ const UserDashboard = () => {
 
     const fetchUserGroups = async (userId, token) => {
         try {
-            const response = await fetch(`http://localhost:3001/api/users/${userId}/groups`, {
+            const response = await fetch(`${API_BASE}/api/users/${userId}/groups`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -219,7 +219,7 @@ const UserDashboard = () => {
 
     const fetchSuggestedGroups = async (token) => {
         try {
-            const response = await fetch('http://localhost:3001/api/groups', {
+            const response = await fetch(`${API_BASE}/api/groups`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -240,7 +240,7 @@ const UserDashboard = () => {
 
     const fetchFolders = async (token) => {
         try {
-            const response = await fetch('http://localhost:3001/api/folders', {
+            const response = await fetch(`${API_BASE}/api/folders`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -261,7 +261,7 @@ const UserDashboard = () => {
 
     const fetchNotes = async (token, folderId = null) => {
         try {
-            let url = 'http://localhost:3001/api/notes';
+            let url = `${API_BASE}/api/notes`;
             if (folderId) {
                 url += `?folderId=${folderId}`;
             }
@@ -287,7 +287,7 @@ const UserDashboard = () => {
 
     const fetchGroupDetails = async (groupId, token) => {
         try {
-            const response = await fetch(`http://localhost:3001/api/groups/${groupId}`, {
+            const response = await fetch(`${API_BASE}/api/groups/${groupId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -311,7 +311,7 @@ const UserDashboard = () => {
 
     const fetchGroupMessages = async (groupId, token) => {
         try {
-            const response = await fetch(`http://localhost:3001/api/groups/${groupId}/messages`, {
+            const response = await fetch(`${API_BASE}/api/groups/${groupId}/messages`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -332,12 +332,12 @@ const UserDashboard = () => {
 
     const initializeSocket = (group) => {
         const token = localStorage.getItem('token');
-        
+
         if (socketRef.current) {
             socketRef.current.disconnect();
         }
 
-        socketRef.current = io('http://localhost:3001', {
+        socketRef.current = io(SOCKET_URL, {
             auth: { token }
         });
 
@@ -364,8 +364,8 @@ const UserDashboard = () => {
         });
 
         socketRef.current.on('message_liked', (data) => {
-            setGroupMessages(prev => prev.map(msg => 
-                msg.id === data.messageId 
+            setGroupMessages(prev => prev.map(msg =>
+                msg.id === data.messageId
                     ? { ...msg, likes: data.likes, isLiked: data.isLiked }
                     : msg
             ));
@@ -415,7 +415,7 @@ const UserDashboard = () => {
         setIsCreatingGroup(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:3001/api/groups', {
+            const response = await fetch(`${API_BASE}/api/groups`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -444,7 +444,7 @@ const UserDashboard = () => {
     const handleJoinGroup = async (groupId) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:3001/api/groups/${groupId}/join`, {
+            const response = await fetch(`${API_BASE}/api/groups/${groupId}/join`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -471,7 +471,7 @@ const UserDashboard = () => {
         setIsCreatingFolder(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:3001/api/folders', {
+            const response = await fetch(`${API_BASE}/api/folders`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -504,7 +504,7 @@ const UserDashboard = () => {
         setIsCreatingNote(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:3001/api/notes', {
+            const response = await fetch(`${API_BASE}/api/notes`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -538,7 +538,7 @@ const UserDashboard = () => {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:3001/api/notes/${noteId}`, {
+            const response = await fetch(`${API_BASE}/api/notes/${noteId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -566,7 +566,7 @@ const UserDashboard = () => {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:3001/api/folders/${folderId}`, {
+            const response = await fetch(`${API_BASE}/api/folders/${folderId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -754,7 +754,7 @@ const UserDashboard = () => {
             const formData = new FormData();
             formData.append('profilepic', file);
 
-            const response = await fetch(`http://localhost:3001/api/users/${userId}/profilepic`, {
+            const response = await fetch(`${API_BASE}/api/users/${userId}/profilepic`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -764,7 +764,7 @@ const UserDashboard = () => {
 
             if (response.ok) {
                 const result = await response.json();
-                setProfilePic(`http://localhost:3001${result.profilePicture}?t=${Date.now()}`);
+                setProfilePic(`${API_BASE}${result.profilePicture}?t=${Date.now()}`);
                 fetchUserData();
             } else {
                 alert('Failed to upload profile picture');
@@ -782,7 +782,7 @@ const UserDashboard = () => {
             const token = localStorage.getItem('token');
             const userId = user.id;
 
-            const response = await fetch(`http://localhost:3001/api/users/${userId}/profilepic`, {
+            const response = await fetch(`${API_BASE}/api/users/${userId}/profilepic`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -791,7 +791,7 @@ const UserDashboard = () => {
             });
 
             if (response.ok) {
-                setProfilePic('http://localhost:3001/uploads/profilepics/DefaultPic.jpeg');
+                setProfilePic(`${API_BASE}/uploads/profilepics/DefaultPic.jpeg`);
                 fetchUserData();
             } else {
                 alert('Failed to delete profile picture');
@@ -818,7 +818,7 @@ const UserDashboard = () => {
                 });
             }
 
-            const response = await fetch('http://localhost:3001/api/posts', {
+            const response = await fetch(`${API_BASE}/api/posts`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -855,7 +855,7 @@ const UserDashboard = () => {
     const handleLikePost = async (postId) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:3001/api/posts/${postId}/like`, {
+            const response = await fetch(`${API_BASE}/api/posts/${postId}/like`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -881,7 +881,7 @@ const UserDashboard = () => {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:3001/api/posts/${postId}`, {
+            const response = await fetch(`${API_BASE}/api/posts/${postId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -975,19 +975,19 @@ const UserDashboard = () => {
                                 type="text"
                                 placeholder="Group Name"
                                 value={newGroup.name}
-                                onChange={(e) => setNewGroup({...newGroup, name: e.target.value})}
+                                onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
                                 className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
                             />
                             <textarea
                                 placeholder="Group Description"
                                 value={newGroup.description}
-                                onChange={(e) => setNewGroup({...newGroup, description: e.target.value})}
+                                onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
                                 rows="3"
                                 className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
                             />
                             <select
                                 value={newGroup.privacy}
-                                onChange={(e) => setNewGroup({...newGroup, privacy: e.target.value})}
+                                onChange={(e) => setNewGroup({ ...newGroup, privacy: e.target.value })}
                                 className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
                             >
                                 <option value="public">Public</option>
@@ -1019,13 +1019,13 @@ const UserDashboard = () => {
                                 type="text"
                                 placeholder="Folder Name"
                                 value={newFolder.name}
-                                onChange={(e) => setNewFolder({...newFolder, name: e.target.value})}
+                                onChange={(e) => setNewFolder({ ...newFolder, name: e.target.value })}
                                 className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
                             />
                             <textarea
                                 placeholder="Folder Description"
                                 value={newFolder.description}
-                                onChange={(e) => setNewFolder({...newFolder, description: e.target.value})}
+                                onChange={(e) => setNewFolder({ ...newFolder, description: e.target.value })}
                                 rows="3"
                                 className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
                             />
@@ -1055,19 +1055,19 @@ const UserDashboard = () => {
                                 type="text"
                                 placeholder="Note Title"
                                 value={newNote.title}
-                                onChange={(e) => setNewNote({...newNote, title: e.target.value})}
+                                onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
                                 className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
                             />
                             <textarea
                                 placeholder="Note Content"
                                 value={newNote.content}
-                                onChange={(e) => setNewNote({...newNote, content: e.target.value})}
+                                onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
                                 rows="5"
                                 className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
                             />
                             <select
                                 value={newNote.folderId}
-                                onChange={(e) => setNewNote({...newNote, folderId: e.target.value})}
+                                onChange={(e) => setNewNote({ ...newNote, folderId: e.target.value })}
                                 className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
                             >
                                 <option value="">No Folder</option>
@@ -1100,7 +1100,7 @@ const UserDashboard = () => {
                                 </div>
                                 <p className="text-gray-400 text-sm">{selectedGroup.description}</p>
                             </div>
-                            
+
                             <div className="p-4 border-b border-gray-700">
                                 <h4 className="font-bold mb-3">Group Info</h4>
                                 <div className="space-y-2 text-sm">
@@ -1131,7 +1131,7 @@ const UserDashboard = () => {
                                             <div key={member._id} className="flex items-center space-x-3">
                                                 <div className="relative">
                                                     <img
-                                                        src={`http://localhost:3001${member.profilePicture}`}
+                                                        src={`${API_BASE}${member.profilePicture}`}
                                                         alt={member.username}
                                                         className="w-8 h-8 rounded-full object-cover"
                                                     />
@@ -1153,7 +1153,7 @@ const UserDashboard = () => {
                         </div>
 
                         <div className="w-2/3 flex flex-col">
-                            <div 
+                            <div
                                 ref={chatMessagesRef}
                                 className="flex-1 overflow-y-auto p-4 space-y-4"
                             >
@@ -1177,15 +1177,15 @@ const UserDashboard = () => {
                                         </div>
                                     </div>
                                 ))}
-                                
+
                                 {typingUsers.length > 0 && (
                                     <div className="flex justify-start">
                                         <div className="bg-gray-700 rounded-lg p-3">
                                             <div className="flex items-center space-x-2">
                                                 <div className="flex space-x-1">
                                                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                                                 </div>
                                                 <span className="text-sm text-gray-400">
                                                     {typingUsers.map(u => u.username).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
@@ -1246,7 +1246,7 @@ const UserDashboard = () => {
                                         >
                                             {Icons.camera}
                                         </button>
-                                        {profilePic !== 'http://localhost:3001/uploads/profilepics/DefaultPic.jpeg' && (
+                                        {profilePic !== `${API_BASE}/uploads/profilepics/DefaultPic.jpeg` && (
                                             <button
                                                 onClick={handleDeleteProfilePic}
                                                 className="bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
@@ -1381,7 +1381,7 @@ const UserDashboard = () => {
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="flex items-center space-x-3">
                                                     <img
-                                                        src={`http://localhost:3001${post.profilePicture}`}
+                                                        src={`${API_BASE}${post.profilePicture}`}
                                                         alt="Profile"
                                                         className="w-10 h-10 rounded-full object-cover"
                                                     />
@@ -1405,13 +1405,13 @@ const UserDashboard = () => {
                                                         <div key={index} className="rounded-lg overflow-hidden">
                                                             {media.mediaType === 'image' ? (
                                                                 <img
-                                                                    src={`http://localhost:3001${media.url}`}
+                                                                    src={`${API_BASE}${media.url}`}
                                                                     alt={`Post media ${index + 1}`}
                                                                     className="w-full h-48 object-cover"
                                                                 />
                                                             ) : (
                                                                 <video
-                                                                    src={`http://localhost:3001${media.url}`}
+                                                                    src={`${API_BASE}${media.url}`}
                                                                     className="w-full h-48 object-cover"
                                                                     controls
                                                                 />

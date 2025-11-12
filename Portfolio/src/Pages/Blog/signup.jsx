@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import gsap from 'gsap';
 import { useNavigate } from 'react-router-dom';
-
+import { API_BASE } from '../../config';
 const SignupPage = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
@@ -48,7 +48,7 @@ const SignupPage = () => {
         }
         
         try {
-            const response = await fetch('http://localhost:3001/api/signup', {
+            const response = await fetch(`${API_BASE}/api/signup`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
