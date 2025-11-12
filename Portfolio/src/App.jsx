@@ -4,7 +4,6 @@ import LandingPage from './LandingPage'
 import Contact from './Pages/Contact'
 import AboutSectionn from './Pages/About'
 import PortfolioWrapper from './Pages/PortfolioWrapper'
-import BlogPlatform from './Pages/Blog/Blog'
 import LoginPage from './Pages/Blog/Login'
 import SignupPage from './Pages/Blog/signup'
 import Profile from './Pages/Blog/Profile'
@@ -18,7 +17,6 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutSectionn />} />
         <Route path="/portfolio" element={<PortfolioWrapper />} />
-        <Route path="/blog" element={<BlogPlatform />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
