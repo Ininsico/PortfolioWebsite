@@ -16,7 +16,8 @@ const server = http.createServer(app);
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173',
+  // origin: 'http://localhost:5173',
+  origin: true,  
   credentials: true
 }));
 app.use(express.json());
@@ -313,7 +314,8 @@ const groupFileUpload = multer({
 // Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    // origin: "http://localhost:5173",
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
@@ -2208,6 +2210,6 @@ app.get('/api/users/:userId/notes-stats', authenticateToken, async (req, res) =>
 });
 // Start server
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
 });
