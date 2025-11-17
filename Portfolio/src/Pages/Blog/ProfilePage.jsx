@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import io from 'socket.io-client';
-import { API_BASE,SOCKET_URL } from '../../config';
+import { API_BASE, SOCKET_URL } from '../../config';
 gsap.registerPlugin(ScrollTrigger);
 
 const UserDashboard = () => {
@@ -49,6 +49,18 @@ const UserDashboard = () => {
     const [newNote, setNewNote] = useState({ title: '', content: '', folderId: '', tags: [], color: '#1f2937' });
     const [isCreatingFolder, setIsCreatingFolder] = useState(false);
     const [isCreatingNote, setIsCreatingNote] = useState(false);
+    const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+    const [selectedGroupForMembers, setSelectedGroupForMembers] = useState(null);
+    const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [selectedUsers, setSelectedUsers] = useState([]);
+    const [isAddingMembers, setIsAddingMembers] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showEditGroupModal, setShowEditGroupModal] = useState(false);
+    const [editingGroup, setEditingGroup] = useState(null);
+    const [editGroupData, setEditGroupData] = useState({ name: '', description: '', category: 'General', privacy: 'public' });
+    const [isEditingGroup, setIsEditingGroup] = useState(false);
+    const [uploadingFile, setUploadingFile] = useState(false);
 
     const Icons = {
         posts: (
@@ -134,6 +146,26 @@ const UserDashboard = () => {
         document: (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+            </svg>
+        ),
+        upload: (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" />
+            </svg>
+        ),
+        download: (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" />
+            </svg>
+        ),
+        edit: (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+            </svg>
+        ),
+        leave: (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
             </svg>
         )
     };
@@ -308,7 +340,135 @@ const UserDashboard = () => {
             console.log("Fetch group details error:", error);
         }
     };
+    const handleAddMembersToGroup = async (e) => {
+        e.preventDefault();
+        if (selectedUsers.length === 0) return;
 
+        setIsAddingMembers(true);
+        try {
+            const token = localStorage.getItem('token');
+
+            const results = [];
+            for (const user of selectedUsers) {
+                const response = await fetch(`${API_BASE}/api/groups/${selectedGroupForMembers._id}/members`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userId: user._id })
+                });
+
+                if (response.ok) {
+                    results.push({ user, success: true });
+                } else {
+                    const errorData = await response.json();
+                    results.push({ user, success: false, error: errorData.message });
+                }
+            }
+
+            // Show results
+            const successful = results.filter(r => r.success);
+            const failed = results.filter(r => !r.success);
+
+            if (failed.length === 0) {
+                alert(`Successfully added ${successful.length} member(s) to the group!`);
+            } else {
+                alert(`Added ${successful.length} member(s). Failed to add ${failed.length} member(s).`);
+            }
+
+            // Refresh and close
+            if (selectedGroupForMembers) {
+                fetchGroupDetails(selectedGroupForMembers._id, token);
+            }
+
+            setSelectedUsers([]);
+            setUserSearchQuery('');
+            setSearchResults([]);
+            setShowAddMemberModal(false);
+            fetchUserData();
+
+        } catch (error) {
+            console.error('Add members error:', error);
+            alert('Error adding members to group');
+        } finally {
+            setIsAddingMembers(false);
+        }
+    };
+    const handleUserSelect = (user) => {
+        if (!selectedUsers.some(selected => selected._id === user._id)) {
+            setSelectedUsers(prev => [...prev, user]);
+        }
+        setUserSearchQuery('');
+        setSearchResults([]);
+    };
+
+    const handleRemoveSelectedUser = (userId) => {
+        setSelectedUsers(prev => prev.filter(user => user._id !== userId));
+    };
+    //searching members to add
+    const searchUsers = async (query) => {
+        if (!query.trim()) {
+            setSearchResults([]);
+            return;
+        }
+
+        setIsSearching(true);
+        try {
+            const token = localStorage.getItem('token');
+            // Note: You'll need to create this API endpoint
+            const response = await fetch(`${API_BASE}/api/users/search?q=${encodeURIComponent(query)}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Filter out users who are already in the group
+                const filteredResults = data.users.filter(user =>
+                    !selectedGroupForMembers.members.some(member => member._id === user._id)
+                );
+                setSearchResults(filteredResults);
+            } else {
+                setSearchResults([]);
+            }
+        } catch (error) {
+            console.error('Search users error:', error);
+            setSearchResults([]);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+    //removing member functionality
+    const handleRemoveMember = async (memberId) => {
+        if (!window.confirm('Are you sure you want to remove this member from the group?')) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE}/api/groups/${selectedGroupForMembers._id}/members/${memberId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                // Refresh group data
+                fetchGroupDetails(selectedGroupForMembers._id, token);
+                alert('Member removed successfully');
+            } else {
+                const errorData = await response.json();
+                alert(errorData.message || 'Failed to remove member');
+            }
+        } catch (error) {
+            console.error('Remove member error:', error);
+            alert('Error removing member');
+        }
+    };
     const fetchGroupMessages = async (groupId, token) => {
         try {
             const response = await fetch(`${API_BASE}/api/groups/${groupId}/messages`, {
@@ -407,7 +567,162 @@ const UserDashboard = () => {
             socketRef.current.emit('typing_stop', { groupId: selectedGroup._id });
         }
     };
+    // Upload file to group
+    const handleFileUpload = async (event, groupId) => {
+        const file = event.target.files[0];
+        if (!file) return;
 
+        setUploadingFile(true);
+        try {
+            const token = localStorage.getItem('token');
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch(`${API_BASE}/api/groups/${groupId}/upload`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Add the new file message to the chat
+                setGroupMessages(prev => [...prev, result.messageData]);
+            } else {
+                alert('Failed to upload file');
+            }
+        } catch (error) {
+            console.error('File upload error:', error);
+            alert('Error uploading file');
+        } finally {
+            setUploadingFile(false);
+        }
+    };
+
+    // Download file
+    const handleDownloadFile = (fileUrl, fileName) => {
+        const link = document.createElement('a');
+        link.href = `${API_BASE}${fileUrl}`;
+        link.download = fileName;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // Edit group
+    const handleEditGroup = async (e) => {
+        e.preventDefault();
+        if (!editGroupData.name.trim()) return;
+
+        setIsEditingGroup(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE}/api/groups/${editingGroup._id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(editGroupData)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Update the group in state
+                setGroups(prev => prev.map(group =>
+                    group._id === editingGroup._id ? result.group : group
+                ));
+                if (selectedGroup && selectedGroup._id === editingGroup._id) {
+                    setSelectedGroup(result.group);
+                }
+                setShowEditGroupModal(false);
+                setEditingGroup(null);
+                setEditGroupData({ name: '', description: '', category: 'General', privacy: 'public' });
+            } else {
+                alert('Failed to update group');
+            }
+        } catch (error) {
+            console.error('Edit group error:', error);
+            alert('Error updating group');
+        } finally {
+            setIsEditingGroup(false);
+        }
+    };
+
+    // Delete group
+    const handleDeleteGroup = async (groupId) => {
+        if (!window.confirm('Are you sure you want to delete this group? This action cannot be undone.')) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE}/api/groups/${groupId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                // Remove group from state
+                setGroups(prev => prev.filter(group => group._id !== groupId));
+                if (selectedGroup && selectedGroup._id === groupId) {
+                    handleCloseGroupModal();
+                }
+                fetchUserData(); // Refresh data
+            } else {
+                alert('Failed to delete group');
+            }
+        } catch (error) {
+            console.error('Delete group error:', error);
+            alert('Error deleting group');
+        }
+    };
+
+    // Leave group
+    const handleLeaveGroup = async (groupId) => {
+        if (!window.confirm('Are you sure you want to leave this group?')) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE}/api/groups/${groupId}/leave`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                // Remove group from state
+                setGroups(prev => prev.filter(group => group._id !== groupId));
+                if (selectedGroup && selectedGroup._id === groupId) {
+                    handleCloseGroupModal();
+                }
+                fetchUserData(); // Refresh data
+            } else {
+                alert('Failed to leave group');
+            }
+        } catch (error) {
+            console.error('Leave group error:', error);
+            alert('Error leaving group');
+        }
+    };
+
+    // Open edit group modal
+    const openEditGroupModal = (group) => {
+        setEditingGroup(group);
+        setEditGroupData({
+            name: group.name,
+            description: group.description || '',
+            category: group.category || 'General',
+            privacy: group.privacy || 'public'
+        });
+        setShowEditGroupModal(true);
+    };
     const handleCreateGroup = async (e) => {
         e.preventDefault();
         if (!newGroup.name.trim()) return;
@@ -430,6 +745,10 @@ const UserDashboard = () => {
                 setNewGroup({ name: '', description: '', category: 'General', privacy: 'public' });
                 setShowCreateGroupModal(false);
                 fetchUserData();
+                if (newGroup.privacy === 'private') {
+                    setSelectedGroupForMembers(result.group);
+                    setShowAddMemberModal(true);
+                }
             } else {
                 alert('Failed to create group');
             }
@@ -456,7 +775,12 @@ const UserDashboard = () => {
                 fetchUserData();
                 fetchSuggestedGroups(token);
             } else {
-                alert('Failed to join group');
+                const errorData = await response.json();
+                if (errorData.message.includes('private') && errorData.message.includes('admin')) {
+                    alert('This is a private group. Only the admin can add members.');
+                } else {
+                    alert(errorData.message || 'Failed to join group');
+                }
             }
         } catch (error) {
             console.error('Join group error:', error);
@@ -601,14 +925,99 @@ const UserDashboard = () => {
 
     useEffect(() => {
         fetchUserData();
+
+        // Cleanup function for when component unmounts
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+            }
+        };
     }, [navigate]);
+    // Handle typing timeout
+    useEffect(() => {
+        let typingTimer;
+
+        if (isTyping) {
+            typingTimer = setTimeout(() => {
+                stopTyping();
+            }, 3000); // Stop typing after 3 seconds of inactivity
+        }
+
+        return () => {
+            if (typingTimer) {
+                clearTimeout(typingTimer);
+            }
+        };
+    }, [isTyping, newMessage]); // Reset timer when user types again
 
     useEffect(() => {
         if (chatMessagesRef.current) {
             chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
         }
     }, [groupMessages]);
+    // SearchUsers useEffect
+    // SearchUsers useEffect - UPDATE THIS ONE
+    useEffect(() => {
+        if (userSearchQuery.trim() && selectedGroupForMembers) {
+            const debounceTimer = setTimeout(() => {
+                searchUsers(userSearchQuery);
+            }, 300);
+            return () => clearTimeout(debounceTimer);
+        } else {
+            setSearchResults([]);
+        }
+    }, [userSearchQuery, selectedGroupForMembers]); // Added selectedGroupForMembers dependency
+    // Handle socket messages including file uploads
+    useEffect(() => {
+        if (!socketRef.current) return;
 
+        const handleReceiveMessage = (message) => {
+            setGroupMessages(prev => [...prev, message]);
+        };
+
+        socketRef.current.on('receive_group_message', handleReceiveMessage);
+
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.off('receive_group_message', handleReceiveMessage);
+            }
+        };
+    }, [socketRef.current]); // Re-run when socket changes
+    // Refresh group data when groups change
+    useEffect(() => {
+        if (selectedGroup) {
+            // Update selectedGroup with latest data from groups array
+            const updatedGroup = groups.find(g => g._id === selectedGroup._id);
+            if (updatedGroup) {
+                setSelectedGroup(updatedGroup);
+            }
+        }
+    }, [groups]); // When groups array updates
+    // Manage modal states to prevent conflicts
+    useEffect(() => {
+        // Close edit modal if group modal closes
+        if (!showGroupModal && showEditGroupModal) {
+            setShowEditGroupModal(false);
+        }
+
+        // Close add member modal if group modal closes
+        if (!showGroupModal && showAddMemberModal) {
+            setShowAddMemberModal(false);
+        }
+    }, [showGroupModal]);
+    // Clean up file upload state when group modal closes
+    useEffect(() => {
+        if (!showGroupModal) {
+            setUploadingFile(false);
+        }
+    }, [showGroupModal]);
+    // Clean up edit modal when it closes
+    useEffect(() => {
+        if (!showEditGroupModal) {
+            setEditingGroup(null);
+            setEditGroupData({ name: '', description: '', category: 'General', privacy: 'public' });
+        }
+    }, [showEditGroupModal]);
     useEffect(() => {
         if (!user) return;
 
@@ -1086,7 +1495,176 @@ const UserDashboard = () => {
                     </div>
                 </div>
             )}
+            {showAddMemberModal && selectedGroupForMembers && (
+                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+                    <div className="bg-gray-800 rounded-xl p-6 w-96 border border-gray-600 max-h-[80vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold">
+                                Add Members to {selectedGroupForMembers.name}
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setShowAddMemberModal(false);
+                                    setSelectedGroupForMembers(null);
+                                    setSelectedUsers([]);
+                                    setUserSearchQuery('');
+                                    setSearchResults([]);
+                                }}
+                                className="text-gray-400 hover:text-white"
+                            >
+                                {Icons.close}
+                            </button>
+                        </div>
 
+                        <form onSubmit={handleAddMembersToGroup} className="space-y-4">
+                            {/* Search Input */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">
+                                    Search Users
+                                </label>
+                                <input
+                                    type="text"
+                                    value={userSearchQuery}
+                                    onChange={(e) => {
+                                        setUserSearchQuery(e.target.value);
+                                        searchUsers(e.target.value);
+                                    }}
+                                    placeholder="Type to search users..."
+                                    className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
+                                />
+
+                                {/* Search Results */}
+                                {isSearching && (
+                                    <div className="text-gray-400 text-sm mt-2">Searching...</div>
+                                )}
+
+                                {searchResults.length > 0 && (
+                                    <div className="mt-2 border border-gray-600 rounded-lg max-h-32 overflow-y-auto">
+                                        {searchResults.map(user => (
+                                            <div
+                                                key={user._id}
+                                                onClick={() => handleUserSelect(user)}
+                                                className="p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-600 last:border-b-0"
+                                            >
+                                                <div className="flex items-center space-x-3">
+                                                    <img
+                                                        src={`${API_BASE}${user.profilePicture}`}
+                                                        alt={user.username}
+                                                        className="w-8 h-8 rounded-full object-cover"
+                                                    />
+                                                    <div>
+                                                        <p className="font-medium">{user.username}</p>
+                                                        <p className="text-xs text-gray-400">{user.email}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Selected Users */}
+                            {selectedUsers.length > 0 && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                                        Selected Users ({selectedUsers.length})
+                                    </label>
+                                    <div className="space-y-2">
+                                        {selectedUsers.map(user => (
+                                            <div key={user._id} className="flex items-center justify-between bg-gray-700 rounded-lg p-3">
+                                                <div className="flex items-center space-x-3">
+                                                    <img
+                                                        src={`${API_BASE}${user.profilePicture}`}
+                                                        alt={user.username}
+                                                        className="w-8 h-8 rounded-full object-cover"
+                                                    />
+                                                    <div>
+                                                        <p className="font-medium">{user.username}</p>
+                                                        <p className="text-xs text-gray-400">{user.email}</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveSelectedUser(user._id)}
+                                                    className="text-red-500 hover:text-red-400"
+                                                >
+                                                    {Icons.close}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex space-x-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowAddMemberModal(false);
+                                        setSelectedGroupForMembers(null);
+                                        setSelectedUsers([]);
+                                        setUserSearchQuery('');
+                                        setSearchResults([]);
+                                    }}
+                                    className="flex-1 bg-gray-700 text-white py-3 rounded-lg font-medium hover:bg-gray-600 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isAddingMembers || selectedUsers.length === 0}
+                                    className="flex-1 bg-white text-black py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isAddingMembers ? 'Adding...' : `Add ${selectedUsers.length} Member(s)`}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            {showEditGroupModal && editingGroup && (
+                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+                    <div className="bg-gray-800 rounded-xl p-6 w-96 border border-gray-600">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold">Edit Group</h3>
+                            <button onClick={() => setShowEditGroupModal(false)} className="text-gray-400 hover:text-white">
+                                {Icons.close}
+                            </button>
+                        </div>
+                        <form onSubmit={handleEditGroup} className="space-y-4">
+                            <input
+                                type="text"
+                                placeholder="Group Name"
+                                value={editGroupData.name}
+                                onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
+                                className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
+                            />
+                            <textarea
+                                placeholder="Group Description"
+                                value={editGroupData.description}
+                                onChange={(e) => setEditGroupData({ ...editGroupData, description: e.target.value })}
+                                rows="3"
+                                className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
+                            />
+                            <select
+                                value={editGroupData.privacy}
+                                onChange={(e) => setEditGroupData({ ...editGroupData, privacy: e.target.value })}
+                                className="w-full bg-black border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-white"
+                            >
+                                <option value="public">Public</option>
+                                <option value="private">Private</option>
+                            </select>
+                            <button
+                                type="submit"
+                                disabled={isEditingGroup || !editGroupData.name.trim()}
+                                className="w-full bg-white text-black py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isEditingGroup ? 'Updating...' : 'Update Group'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
             {showGroupModal && selectedGroup && (
                 <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
                     <div className="bg-gray-800 rounded-xl w-full max-w-6xl h-[90vh] border border-gray-600 flex">
@@ -1120,6 +1698,19 @@ const UserDashboard = () => {
                                         <span>Online:</span>
                                         <span className="text-green-500">{onlineMembers.length}</span>
                                     </div>
+                                    {selectedGroup.admin?._id === user.id && (
+                                        <div className="pt-3 mt-3 border-t border-gray-600">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedGroupForMembers(selectedGroup);
+                                                    setShowAddMemberModal(true);
+                                                }}
+                                                className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
+                                            >
+                                                Manage Members
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -1145,6 +1736,19 @@ const UserDashboard = () => {
                                                         {onlineMembers.some(online => online.userId === member._id) ? 'Online' : 'Offline'}
                                                     </p>
                                                 </div>
+
+                                                {selectedGroup.admin?._id === user.id && member._id !== user.id && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleRemoveMember(member._id);
+                                                        }}
+                                                        className="text-red-500 hover:text-red-400 text-sm p-1"
+                                                        title="Remove member"
+                                                    >
+                                                        {Icons.trash}
+                                                    </button>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -1164,7 +1768,36 @@ const UserDashboard = () => {
                                                 <span className="text-sm font-medium">{message.username}</span>
                                                 <span className="text-xs text-gray-300">{formatMessageTime(message.createdAt)}</span>
                                             </div>
-                                            <p className="text-white">{message.content}</p>
+
+                                            {/* File message */}
+                                            {message.messageType !== 'text' ? (
+                                                <div className="flex items-center space-x-2 p-2 bg-black bg-opacity-30 rounded">
+                                                    {message.messageType === 'image' && (
+                                                        <img
+                                                            src={`${API_BASE}${message.fileUrl}`}
+                                                            alt={message.fileName}
+                                                            className="w-16 h-16 object-cover rounded"
+                                                        />
+                                                    )}
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium">{message.fileName}</p>
+                                                        <p className="text-xs text-gray-400">
+                                                            {message.fileSize ? (message.fileSize / 1024 / 1024).toFixed(2) + ' MB' : ''}
+                                                        </p>
+                                                        <button
+                                                            onClick={() => handleDownloadFile(message.fileUrl, message.fileName)}
+                                                            className="flex items-center space-x-1 text-xs text-blue-400 hover:text-blue-300 mt-1"
+                                                        >
+                                                            {Icons.download}
+                                                            <span>Download</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                /* Text message */
+                                                <p className="text-white">{message.content}</p>
+                                            )}
+
                                             <div className="flex items-center justify-between mt-2">
                                                 <button
                                                     onClick={() => handleLikeMessage(message.id)}
@@ -1198,6 +1831,26 @@ const UserDashboard = () => {
 
                             <div className="border-t border-gray-700 p-4">
                                 <div className="flex space-x-3">
+                                    {/* File upload button */}
+                                    <input
+                                        type="file"
+                                        id="group-file-upload"
+                                        onChange={(e) => handleFileUpload(e, selectedGroup._id)}
+                                        className="hidden"
+                                        accept="image/*,video/*,application/pdf"
+                                    />
+                                    <label
+                                        htmlFor="group-file-upload"
+                                        className="bg-gray-700 text-white px-4 py-3 rounded-lg font-medium hover:bg-gray-600 transition-colors cursor-pointer flex items-center space-x-2"
+                                        title="Upload file"
+                                    >
+                                        {uploadingFile ? (
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        ) : (
+                                            Icons.upload
+                                        )}
+                                    </label>
+
                                     <input
                                         type="text"
                                         value={newMessage}
@@ -1502,6 +2155,52 @@ const UserDashboard = () => {
                                                 fetchGroupDetails(group._id, token);
                                             }}
                                         >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h3 className="text-lg font-bold">{group.name}</h3>
+                                                <div className="flex space-x-1">
+                                                    {/* Edit button (admin only) */}
+                                                    {group.admin?._id === user.id && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                openEditGroupModal(group);
+                                                            }}
+                                                            className="text-gray-400 hover:text-yellow-500 transition-colors p-1"
+                                                            title="Edit group"
+                                                        >
+                                                            {Icons.edit}
+                                                        </button>
+                                                    )}
+
+                                                    {/* Delete button (admin only) */}
+                                                    {group.admin?._id === user.id && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteGroup(group._id);
+                                                            }}
+                                                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                            title="Delete group"
+                                                        >
+                                                            {Icons.trash}
+                                                        </button>
+                                                    )}
+
+                                                    {/* Leave button (non-admin members) */}
+                                                    {group.admin?._id !== user.id && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleLeaveGroup(group._id);
+                                                            }}
+                                                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                            title="Leave group"
+                                                        >
+                                                            {Icons.leave}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
                                             <h3 className="text-lg font-bold mb-2">{group.name}</h3>
                                             <p className="text-gray-400 text-sm mb-4">{group.description}</p>
                                             <div className="space-y-2 text-sm text-gray-300">
@@ -1516,6 +2215,13 @@ const UserDashboard = () => {
                                                 <div className="flex items-center space-x-2">
                                                     {Icons.time}
                                                     <span>Created {new Date(group.createdAt).toLocaleDateString()}</span>
+                                                </div>
+                                                <div className="flex items-center space-x-2">
+                                                    <div className={`w-2 h-2 rounded-full ${group.privacy === 'private' ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                                    <span className="capitalize">{group.privacy} group</span>
+                                                    {group.admin?._id === user.id && (
+                                                        <span className="text-xs bg-yellow-600 text-white px-1 rounded">Admin</span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

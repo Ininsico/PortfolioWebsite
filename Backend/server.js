@@ -17,7 +17,7 @@ const server = http.createServer(app);
 // Middleware
 app.use(cors({
   // origin: 'http://localhost:5173',
-  origin: true,  
+  origin: true,
   credentials: true
 }));
 app.use(express.json());
@@ -1235,10 +1235,19 @@ app.get('/api/groups/:groupId', authenticateToken, async (req, res) => {
   }
 });
 
+// MODIFY this endpoint in server.js
 app.post('/api/groups/:groupId/join', authenticateToken, async (req, res) => {
   try {
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+
+    // NEW: Check if group is private and user is not admin
+    if (group.privacy === 'private' && group.admin.toString() !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admin can add members to private groups'
+      });
+    }
 
     if (group.members.includes(req.userId)) {
       return res.status(400).json({ success: false, message: 'Already member' });
@@ -1246,7 +1255,6 @@ app.post('/api/groups/:groupId/join', authenticateToken, async (req, res) => {
 
     group.members.push(req.userId);
     await group.save();
-
     await group.populate('admin', 'username profilePicture');
     await group.populate('members', 'username profilePicture');
 
@@ -1256,7 +1264,130 @@ app.post('/api/groups/:groupId/join', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to join group' });
   }
 });
+//Admin allowing members to join
+// ADD this new endpoint to server.js
+app.post('/api/groups/:groupId/members', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.body; // User ID to add
+    const group = await Group.findById(req.params.groupId);
 
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+
+    // Check if current user is admin
+    if (group.admin.toString() !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admin can add members to this group'
+      });
+    }
+
+    // Check if user exists
+    const userToAdd = await User.findById(userId);
+    if (!userToAdd) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Check if already a member
+    if (group.members.includes(userId)) {
+      return res.status(400).json({ success: false, message: 'User already in group' });
+    }
+
+    // Add user to group
+    group.members.push(userId);
+    await group.save();
+
+    await group.populate('admin', 'username profilePicture');
+    await group.populate('members', 'username profilePicture');
+
+    res.json({
+      success: true,
+      message: 'User added to group successfully',
+      group
+    });
+  } catch (error) {
+    console.error('Add member error:', error);
+    res.status(500).json({ success: false, message: 'Failed to add member' });
+  }
+});
+//Adding removing member
+// ADD this endpoint for removing members
+app.delete('/api/groups/:groupId/members/:memberId', authenticateToken, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.groupId);
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+
+    // Check if current user is admin
+    if (group.admin.toString() !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admin can remove members'
+      });
+    }
+
+    // Prevent admin from removing themselves
+    if (req.params.memberId === req.userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin cannot remove themselves'
+      });
+    }
+
+    // Remove member
+    group.members = group.members.filter(memberId =>
+      memberId.toString() !== req.params.memberId
+    );
+
+    // Also remove from online members
+    group.onlineMembers = group.onlineMembers.filter(memberId =>
+      memberId.toString() !== req.params.memberId
+    );
+
+    await group.save();
+
+    res.json({
+      success: true,
+      message: 'Member removed successfully'
+    });
+  } catch (error) {
+    console.error('Remove member error:', error);
+    res.status(500).json({ success: false, message: 'Failed to remove member' });
+  }
+});
+// Add this endpoint to server.js
+app.get('/api/users/search', authenticateToken, async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) {
+      return res.json({ success: true, users: [] });
+    }
+
+    const users = await User.find({
+      $or: [
+        { username: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } }
+      ],
+      _id: { $ne: req.userId } // Exclude current user
+    }).select('username email profilePicture').limit(10);
+
+    res.json({
+      success: true,
+      users: users.map(user => ({
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        profilePicture: user.profilePicture
+      }))
+    });
+  } catch (error) {
+    console.error('User search error:', error);
+    res.status(500).json({ success: false, message: 'Search failed' });
+  }
+});
 app.post('/api/groups/:groupId/leave', authenticateToken, async (req, res) => {
   try {
     const group = await Group.findById(req.params.groupId);
