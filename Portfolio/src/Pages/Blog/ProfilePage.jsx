@@ -416,7 +416,7 @@ const UserDashboard = () => {
         setIsSearching(true);
         try {
             const token = localStorage.getItem('token');
-            // Note: You'll need to create this API endpoint
+            // REMOVE THIS COMMENT - THE ENDPOINT EXISTS!
             const response = await fetch(`${API_BASE}/api/users/search?q=${encodeURIComponent(query)}`, {
                 method: 'GET',
                 headers: {
@@ -427,12 +427,14 @@ const UserDashboard = () => {
 
             if (response.ok) {
                 const data = await response.json();
+                console.log('Search results:', data); // Debug log
                 // Filter out users who are already in the group
                 const filteredResults = data.users.filter(user =>
                     !selectedGroupForMembers.members.some(member => member._id === user._id)
                 );
                 setSearchResults(filteredResults);
             } else {
+                console.log('Search failed with status:', response.status);
                 setSearchResults([]);
             }
         } catch (error) {
@@ -448,6 +450,8 @@ const UserDashboard = () => {
 
         try {
             const token = localStorage.getItem('token');
+            console.log('Removing member:', memberId, 'from group:', selectedGroupForMembers._id);
+
             const response = await fetch(`${API_BASE}/api/groups/${selectedGroupForMembers._id}/members/${memberId}`, {
                 method: 'DELETE',
                 headers: {
@@ -456,12 +460,16 @@ const UserDashboard = () => {
                 }
             });
 
+            console.log('Remove member response status:', response.status);
+
             if (response.ok) {
                 // Refresh group data
-                fetchGroupDetails(selectedGroupForMembers._id, token);
+                await fetchGroupDetails(selectedGroupForMembers._id, token);
                 alert('Member removed successfully');
+                fetchUserData(); // Refresh user data
             } else {
                 const errorData = await response.json();
+                console.error('Remove member error response:', errorData);
                 alert(errorData.message || 'Failed to remove member');
             }
         } catch (error) {
@@ -956,17 +964,21 @@ const UserDashboard = () => {
         }
     }, [groupMessages]);
     // SearchUsers useEffect
-    // SearchUsers useEffect - UPDATE THIS ONE
+    // SearchUsers useEffect - ADD DEBUG LOGS
     useEffect(() => {
+        console.log('Search triggered:', userSearchQuery, 'Group:', selectedGroupForMembers);
+
         if (userSearchQuery.trim() && selectedGroupForMembers) {
             const debounceTimer = setTimeout(() => {
+                console.log('Calling searchUsers with:', userSearchQuery);
                 searchUsers(userSearchQuery);
             }, 300);
             return () => clearTimeout(debounceTimer);
         } else {
+            console.log('Clearing search results');
             setSearchResults([]);
         }
-    }, [userSearchQuery, selectedGroupForMembers]); // Added selectedGroupForMembers dependency
+    }, [userSearchQuery, selectedGroupForMembers]);
     // Handle socket messages including file uploads
     useEffect(() => {
         if (!socketRef.current) return;
